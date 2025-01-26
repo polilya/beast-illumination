@@ -1,0 +1,154 @@
+import machine
+import neopixel
+import time
+import random
+
+# Параметры подключения
+PIN_WS2812B = 26  # Пин ESP32, подключенный к ленте WS2812B
+NUM_PIXELS = 102  # Общее количество светодиодов
+
+# Инициализация светодиодной ленты
+np = neopixel.NeoPixel(machine.Pin(PIN_WS2812B), NUM_PIXELS)
+
+# Исходный фиолетовый цвет (RGB)
+baseR, baseG, baseB = 148, 0, 211
+# Бирюзовый цвет (RGB)
+targetR, targetG, targetB = 0, 255, 255
+
+# Коэффициент изменения цвета
+colorShiftFactor = 0.05
+
+# Параметр скорости (чем больше, тем быстрее)
+speedFactor = 40
+
+
+
+# Функция для получения промежуточного цвета
+def get_gradient_color(step):
+    r = int(baseR + (targetR - baseR) * step * colorShiftFactor)
+    g = int(baseG + (targetG - baseG) * step * colorShiftFactor)
+    b = int(baseB + (targetB - baseB) * step * colorShiftFactor)
+
+    r = max(0, min(r, 255))
+    g = max(0, min(g, 255))
+    b = max(0, min(b, 255))
+
+    return (r, g, b)
+
+# Функция плавного включения
+def wave_on():
+    for i in range(16):
+        if (67 - i) >= 0:  # Проверка границ массива
+            np[67 - i] = get_gradient_color(i)  # Влево
+        if (67 + i) < NUM_PIXELS:
+            np[67 + i] = get_gradient_color(i)  # Вправо
+        np.write()
+        time.sleep(1.0 / speedFactor)
+
+    for i in range(10):
+        if (83 + i) < NUM_PIXELS:
+            np[83 + i] = get_gradient_color(i + 20)
+        if (92 + i) < NUM_PIXELS:
+            np[92 + i] = get_gradient_color(i + 20)
+        if (51 - i) >= 0:
+            np[51 - i] = get_gradient_color(i + 20)
+        np.write()
+        time.sleep(1.0 / speedFactor)
+
+# Функция случайного мерцания
+def random_blink():
+    for _ in range(50):
+        random_pixel = random.randint(0, 41)
+        np[random_pixel] = (0, 255, random.randint(128, 255))
+        np.write()
+        time.sleep(random.uniform(0.01, 0.1) / speedFactor)
+
+# Функция плавного выключения (сверху вниз)
+def wave_off_bottom_to_top():   # четко работает
+    for i in range(16):
+        if (67 - i) >= 0:
+            np[67 - i] = (0, 0, 0)  # Гасим справа налево
+        if (67 + i) < NUM_PIXELS:
+            np[67 + i] = (0, 0, 0)  # Гасим слева направо
+        np.write()
+        time.sleep(1.0 / speedFactor)
+
+    for i in range(10):
+        if (83 + i) < NUM_PIXELS:
+            np[83 + i] = (0, 0, 0)
+        if (92 + i) < NUM_PIXELS:
+            np[92 + i] = (0, 0, 0)
+        if (51 - i) >= 0:
+            np[51 - i] = (0, 0, 0)
+        np.write()
+        time.sleep(1.0 / speedFactor)
+
+# Функция плавного выключения (снизу вверх)
+# Функция плавного выключения (снизу вверх)
+def wave_off_top_to_bottom():
+    # Гасим верхние ряды: сначала от 92 до 83, от 102 до 93, от 42 до 51
+    for i in range(9, -1, -1):  # Обратный порядок
+        if (83 + i) < NUM_PIXELS:
+            np[83 + i] = (0, 0, 0)  # Гасим от 92 до 83 (обратно)
+        if (93 + i) < NUM_PIXELS:
+            np[93 + i] = (0, 0, 0)  # Гасим от 102 до 93 (обратно)
+        if (51 - i) >= 0:
+            np[51 - i] = (0, 0, 0)  # Гасим от 42 до 51 (обратно)
+        np.write()
+        time.sleep(1.0 / speedFactor)
+
+    # Гасим центральную часть: сначала от 87 до 67 и от 52 до 67 (обратно)
+    for i in range(15, -1, -1):
+        if (67 - i) >= 0:
+            np[67 - i] = (0, 0, 0)  # Гасим слева направо (обратно)
+        if (67 + i) < NUM_PIXELS:
+            np[67 + i] = (0, 0, 0)  # Гасим справа налево (обратно)
+        np.write()
+        time.sleep(1.0 / speedFactor)
+
+# Функция интенсивного огненного мерцания
+def random_blink_fire():
+    active_pixels = set()
+
+    for _ in range(100):  # Количество циклов загорания
+        num_lights = random.randint(10, 30)  # Количество пикселей, которые загорятся одновременно
+
+        for _ in range(num_lights):
+            # random_pixel = random.randint(0, NUM_PIXELS - 1)
+            random_pixel = random.randint(0, 41)
+
+            # Генерация случайного огненного цвета (желтый, оранжевый, красный)
+            fire_color = (
+                random.randint(200, 255),  # Красный компонент
+                random.randint(50, 150),   # Зеленый компонент (создает оранжевые оттенки)
+                random.randint(0, 50)      # Синий компонент (минимальный для теплых цветов)
+            )
+
+            np[random_pixel] = fire_color
+            active_pixels.add(random_pixel)
+
+        np.write()
+        time.sleep(random.uniform(0.02, 0.05))  # Быстрое появление новых "огоньков"
+
+    # Постепенное затухание случайных пикселей
+    for _ in range(len(active_pixels)):
+        pixel_to_dim = random.choice(list(active_pixels))
+        np[pixel_to_dim] = (0, 0, 0)  # Гасим пиксель
+        np.write()
+        active_pixels.remove(pixel_to_dim)
+        time.sleep(random.uniform(0.02, 0.1))  # Случайная задержка затухания
+
+
+
+
+# Основной цикл работы
+while True:
+    wave_on()
+    # random_blink()
+    random_blink_fire()
+    time.sleep(0.5 / speedFactor)
+
+
+    wave_off_bottom_to_top()
+    # wave_off_top_to_bottom()
+    time.sleep(0.5 / speedFactor)
