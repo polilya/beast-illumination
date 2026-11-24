@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/polilya/beast-illumination/actions/workflows/ci.yml/badge.svg)](https://github.com/polilya/beast-illumination/actions/workflows/ci.yml)
 
-Lighting for a walking robot crab: 12 linkage legs, each lined with 102 WS2812B LEDs (1,224 in total), driven by one ESP32. The firmware runs 11 lighting modes, drives all 12 strips in parallel, keeps the current inside the power supply's budget, takes commands from a phone over Wi-Fi and reacts to music through an I2S microphone.
+Lighting for a walking robot crab (January–February 2024): 12 linkage legs, each lined with 102 WS2812B LEDs (1,224 in total), driven by one ESP32. The firmware runs 11 lighting modes, drives all 12 strips in parallel, keeps the current inside the power supply's budget, takes commands from a phone over Wi-Fi and reacts to music through an I2S microphone.
 
 **[Open the browser simulator →](https://polilya.github.io/beast-illumination/)** It runs the firmware's own effect code, compiled to WebAssembly.
 
@@ -126,4 +126,4 @@ python3 tools/render_gif.py                   # regenerate the README previews
 
 ## Status
 
-The firmware builds and the engine is tested on the host and in the browser. The rewritten firmware has not yet run on the physical sculpture; the prototypes in [`legacy/`](legacy) are what drove it.
+The firmware builds and the engine is tested on the host and in the browser. The rewritten firmware (2026) has not yet run on the physical sculpture; the prototypes in [`legacy/`](legacy), written in January–February 2024, are what drove it.
