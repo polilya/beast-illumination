@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beast crab simulator</title>
+<style>
+  :root { --bg: #0b0b0d; --panel: #16161a; --line: #2a2a30; --text: #e9e9ee; --muted: #9a9aa6; --accent: #f06a1d; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+  header { padding: 16px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; }
+  h1 { font-size: 18px; margin: 0; }
+  header p { margin: 0; color: var(--muted); }
+  main { display: grid; grid-template-columns: 1fr 300px; gap: 16px; padding: 0 16px 16px; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  canvas { width: 100%; background: #000; border-radius: 12px; display: block; }
+  aside { background: var(--panel); border-radius: 12px; padding: 16px; }
+  #modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  button { padding: 10px 6px; border: 1px solid var(--line); border-radius: 8px; background: #1e1e24; color: var(--text); font: inherit; cursor: pointer; }
+  button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  label { display: flex; justify-content: space-between; margin: 14px 0 4px; color: var(--muted); }
+  input[type=range] { width: 100%; }
+  .meter { height: 8px; background: #2a2a30; border-radius: 4px; overflow: hidden; }
+  .meter div { height: 100%; width: 0; background: var(--accent); }
+  .stat { color: var(--muted); margin-top: 8px; font-variant-numeric: tabular-nums; }
+  #err { color: #ff8a8a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Beast crab simulator</h1>
+  <p>12 legs × 102 WS2812B LEDs. Runs the firmware's own effect engine, compiled to WebAssembly.</p>
+</header>
+<main>
+  <div><canvas id="view"></canvas><p id="err"></p></div>
+  <aside>
+    <div id="modes"></div>
+    <label>Brightness <span id="bv"></span></label><input id="b" type="range" min="0" max="255" value="200">
+    <label>Speed <span id="sv"></span></label><input id="s" type="range" min="10" max="400" value="100">
+    <label>Power budget <span id="pv"></span></label><input id="p" type="range" min="1000" max="60000" step="500" value="20000">
+    <label>Current draw (estimate)</label><div class="meter"><div id="draw"></div></div>
+    <div class="stat" id="stat"></div>
+    <label>Microphone <span id="mv">off</span></label><div class="meter"><div id="mic"></div></div>
+    <button id="micbtn" style="width:100%;margin-top:8px">Use this computer's microphone</button>
+    <div class="stat">Without a microphone, "Sound reactive" runs on a 120 BPM clock.</div>
+  </aside>
+</main>
+<script src="geometry.js"></script>
+<script src="build/crabfx.js"></script>
+<script src="sim.js"></script>
+</body>
+</html>

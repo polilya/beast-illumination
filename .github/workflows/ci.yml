@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ hashFiles('firmware/platformio.ini') }}
+      - run: pip install platformio
+      - name: Unit tests (effect engine on the host)
+        run: pio test -e native
+        working-directory: firmware
+      - name: Build ESP32 firmware
+        run: pio run -e esp32
+        working-directory: firmware
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-esp32
+          path: firmware/.pio/build/esp32/firmware.bin
+
+  simulator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mymindstorm/setup-emsdk@v14
+      - name: Compile the effect engine to WebAssembly
+        run: bash simulator/build.sh
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: simulator
+
+  pages:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [firmware, simulator]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
