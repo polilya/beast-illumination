@@ -16,6 +16,8 @@
   canvas { width: 100%; background: #000; border-radius: 12px; display: block; }
   aside { background: var(--panel); border-radius: 12px; padding: 16px; }
   #modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  #profiles { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  h2 { font-size: 14px; margin: 18px 0 8px; }
   button { padding: 10px 6px; border: 1px solid var(--line); border-radius: 8px; background: #1e1e24; color: var(--text); font: inherit; cursor: pointer; }
   button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
   label { display: flex; justify-content: space-between; margin: 14px 0 4px; color: var(--muted); }
@@ -35,12 +37,17 @@
   <div><canvas id="view"></canvas><p id="err"></p></div>
   <aside>
     <div id="modes"></div>
-    <label>Brightness <span id="bv"></span></label><input id="b" type="range" min="0" max="255" value="200">
     <label>Speed <span id="sv"></span></label><input id="s" type="range" min="10" max="400" value="100">
-    <label>Power budget <span id="pv"></span></label><input id="p" type="range" min="1000" max="60000" step="500" value="20000">
-    <label>Current draw (estimate)</label><div class="meter"><div id="draw"></div></div>
+    <h2>Power</h2>
+    <div id="profiles"></div>
+    <label>Brightness <span id="bv"></span></label><input id="b" type="range" min="0" max="255">
+    <label>Average limit <span id="av"></span></label><input id="a" type="range" min="1500" max="40000" step="500">
+    <label>Peak limit <span id="pv"></span></label><input id="p" type="range" min="1500" max="60000" step="500">
+    <label>Current now (of peak limit) <span id="dv"></span></label><div class="meter"><div id="draw"></div></div>
+    <label>Average, 10 s (of average limit) <span id="mv"></span></label><div class="meter"><div id="avg"></div></div>
+    <label>Burst reserve <span id="rv"></span></label><div class="meter"><div id="res"></div></div>
     <div class="stat" id="stat"></div>
-    <label>Microphone <span id="mv">off</span></label><div class="meter"><div id="mic"></div></div>
+    <label>Microphone <span id="micv">off</span></label><div class="meter"><div id="mic"></div></div>
     <button id="micbtn" style="width:100%;margin-top:8px">Use this computer's microphone</button>
     <div class="stat">Without a microphone, "Sound reactive" runs on a 120 BPM clock.</div>
   </aside>

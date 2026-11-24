@@ -34,9 +34,25 @@ static void addLegs() {
 
 static void saveSettings() {
   prefs.putInt("mode", engine.mode());
-  prefs.putUChar("bright", engine.brightness());
   prefs.putFloat("speed", engine.speed());
-  prefs.putUInt("budget", engine.powerBudgetMa());
+  prefs.putInt("profile", engine.powerProfile());
+  prefs.putUChar("bright", engine.brightness());
+  prefs.putUInt("avg", engine.powerLimits().average_ma);
+  prefs.putUInt("peak", engine.powerLimits().peak_ma);
+}
+
+static void loadSettings() {
+  engine.setSpeed(prefs.getFloat("speed", 1.f));
+  const int profile = prefs.getInt("profile", kDefaultPowerProfile);
+  engine.setPowerProfile(profile >= 0 ? profile : kDefaultPowerProfile);
+  if (profile < 0) {  // hand-tuned: brightness and limits on top of the default profile
+    crabfx::PowerLimits l = engine.powerLimits();
+    l.average_ma = prefs.getUInt("avg", l.average_ma);
+    l.peak_ma = prefs.getUInt("peak", l.peak_ma);
+    engine.setPowerLimits(l);
+    engine.setBrightness(prefs.getUChar("bright", engine.brightness()));
+  }
+  engine.setMode(prefs.getInt("mode", 0), millis());
 }
 
 static void handleState() {
@@ -47,14 +63,27 @@ static void handleState() {
     json += engine.modeName(i);
     json += '"';
   }
-  const crabfx::PowerReport& p = engine.power();
+  json += "],\"profiles\":[";
+  for (int i = 0; i < crabfx::kPowerProfileCount; ++i) {
+    if (i) json += ',';
+    json += '"';
+    json += crabfx::kPowerProfiles[i].name;
+    json += '"';
+  }
+  const crabfx::PowerLimiter& p = engine.power();
   const crabfx::AudioFeatures& a = engine.audio();
   json += "],\"mode\":" + String(engine.mode());
+  json += ",\"profile\":" + String(engine.powerProfile());
   json += ",\"brightness\":" + String(engine.brightness());
   json += ",\"speed\":" + String(engine.speed(), 2);
-  json += ",\"budget\":" + String(engine.powerBudgetMa());
+  json += ",\"average_limit\":" + String(engine.powerLimits().average_ma);
+  json += ",\"peak_limit\":" + String(engine.powerLimits().peak_ma);
   json += ",\"requested\":" + String(p.requested_ma);
   json += ",\"delivered\":" + String(p.delivered_ma);
+  json += ",\"average\":" + String(p.average_ma, 0);
+  json += ",\"reserve\":" + String(p.reserve, 2);
+  json += ",\"scale\":" + String(p.scale, 2);
+  json += ",\"white_trim\":" + String(p.white_trim, 2);
   json += ",\"audio\":{\"valid\":" + String(a.valid ? "true" : "false");
   json += ",\"level\":" + String(a.level, 2) + "}}";
   server.send(200, "application/json", json);
@@ -62,9 +91,15 @@ static void handleState() {
 
 static void handleSet() {
   if (server.hasArg("mode")) engine.setMode(server.arg("mode").toInt(), millis());
-  if (server.hasArg("brightness")) engine.setBrightness(constrain(server.arg("brightness").toInt(), 0, 255));
   if (server.hasArg("speed")) engine.setSpeed(server.arg("speed").toFloat());
-  if (server.hasArg("budget")) engine.setPowerBudgetMa(constrain(server.arg("budget").toInt(), 500, 80000));
+  if (server.hasArg("profile")) engine.setPowerProfile(server.arg("profile").toInt());
+  if (server.hasArg("brightness")) engine.setBrightness(constrain(server.arg("brightness").toInt(), 0, 255));
+  if (server.hasArg("average") || server.hasArg("peak")) {
+    crabfx::PowerLimits l = engine.powerLimits();
+    if (server.hasArg("average")) l.average_ma = constrain(server.arg("average").toInt(), 1500, 80000);
+    if (server.hasArg("peak")) l.peak_ma = constrain(server.arg("peak").toInt(), 1500, 80000);
+    engine.setPowerLimits(l);
+  }
   saveSettings();
   handleState();
 }
@@ -78,10 +113,7 @@ void setup() {
   FastLED.clear(true);
 
   prefs.begin("crab", false);
-  engine.setBrightness(prefs.getUChar("bright", 160));
-  engine.setSpeed(prefs.getFloat("speed", 1.f));
-  engine.setPowerBudgetMa(prefs.getUInt("budget", kDefaultPowerBudgetMa));
-  engine.setMode(prefs.getInt("mode", 0), millis());
+  loadSettings();
 
   mic_ok = audio_input::begin();
   Serial.printf("microphone driver: %s\n", mic_ok ? "ok" : "failed");

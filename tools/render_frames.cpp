@@ -21,7 +21,9 @@ int main(int argc, char** argv) {
     return 2;
   }
   engine.setBrightness(255);
-  engine.setPowerBudgetMa(1000000);  // show the effect as designed, not as a supply would cap it
+  crabfx::PowerLimits unlimited;  // show the effect as designed, not as a supply would cap it
+  unlimited.average_ma = unlimited.peak_ma = 1000000;
+  engine.setPowerLimits(unlimited);
   engine.setMode(mode, 0);
 
   // Warm up so persistent effects (sparks, fire) are already going in the first frame.

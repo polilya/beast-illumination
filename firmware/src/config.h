@@ -19,7 +19,9 @@ constexpr int kMicSdPin = 33;
 constexpr const char* kApSsid = "beast-crab";
 constexpr const char* kApPassword = "change-me-please";  // 8+ characters
 
-// Supply budget for the LEDs in milliamps; the limiter never asks for more.
-constexpr uint32_t kDefaultPowerBudgetMa = 20000;
+// Power profile used until one is chosen on the phone: index into
+// crabfx::kPowerProfiles (0 Eco, 1 Normal, 2 Show). Set the profiles' limits in
+// firmware/lib/crabfx/src/output.cpp to the real battery and converters.
+constexpr int kDefaultPowerProfile = 0;
 
 constexpr uint32_t kFrameIntervalMs = 16;  // ~60 frames per second

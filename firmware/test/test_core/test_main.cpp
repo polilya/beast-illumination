@@ -142,14 +142,100 @@ void test_every_mode_is_deterministic_for_a_seed() {
   }
 }
 
+static PowerLimits limits(uint32_t avg, uint32_t peak) {
+  PowerLimits l;
+  l.average_ma = avg;
+  l.peak_ma = peak;
+  return l;
+}
+
+void test_limiter_leaves_frames_under_average_alone() {
+  static PowerLimiter lim;
+  lim.setLimits(limits(6000, 12000));
+  frame_a.fill(RGB(40, 0, 0));
+  const Frame before = frame_a;
+  lim.apply(frame_a, 16);
+  TEST_ASSERT_EQUAL_MEMORY(&before, &frame_a, sizeof(Frame));
+  TEST_ASSERT_EQUAL_FLOAT(1.f, lim.scale);
+}
+
+void test_limiter_allows_short_bursts_but_holds_the_average() {
+  static PowerLimiter lim;
+  lim.setLimits(limits(6000, 12000));  // 3 s burst reserve by default
+  double sum = 0;
+  uint32_t first = 0, max_delivered = 0;
+  const int frames = 60000 / 16;  // a minute of full white
+  for (int k = 0; k < frames; ++k) {
+    frame_a.fill(RGB(255, 255, 255));
+    lim.apply(frame_a, 16);
+    if (k == 0) first = lim.delivered_ma;
+    if (lim.delivered_ma > max_delivered) max_delivered = lim.delivered_ma;
+    sum += lim.delivered_ma;
+  }
+  TEST_ASSERT_TRUE(first > 11000u);          // the burst gets close to the peak
+  TEST_ASSERT_TRUE(max_delivered <= 12000u);  // and never above it
+  // long-run average: at most the limit plus one reserve spread over the minute
+  const double mean = sum / frames;
+  TEST_ASSERT_TRUE(mean <= 6000.0 + (12000.0 - 6000.0) * 3000.0 / 60000.0 + 1.0);
+  // settled at the average (rounding the scaled channels down costs up to ~150 mA)
+  TEST_ASSERT_UINT32_WITHIN(300, 6000, lim.delivered_ma);
+}
+
+void test_limiter_trims_white_before_dimming_colours() {
+  static PowerLimiter lim;
+  lim.setLimits(limits(20000, 20000));
+  frame_a.fill(RGB(255, 255, 255));
+  lim.apply(frame_a, 16);
+  TEST_ASSERT_TRUE(lim.white_trim > 0.f);
+  frame_a.fill(RGB(255, 0, 0));  // pure red has no white part: nothing to trim
+  lim.apply(frame_a, 16);
+  TEST_ASSERT_EQUAL_FLOAT(0.f, lim.white_trim);
+}
+
+void test_limiter_recovers_brightness_gradually() {
+  static PowerLimiter lim;
+  PowerLimits l = limits(6000, 6000);
+  l.max_white_trim = 0.f;
+  lim.setLimits(l);
+  frame_a.fill(RGB(255, 0, 0));
+  lim.apply(frame_a, 16);
+  const float dipped = lim.scale;
+  TEST_ASSERT_TRUE(dipped < 0.5f);
+  frame_a.fill(RGB(10, 0, 0));  // ~4.1 A: fits the budget unscaled
+  lim.apply(frame_a, 16);
+  TEST_ASSERT_TRUE(lim.scale > dipped && lim.scale < 1.f);  // eased back, not snapped
+  for (int k = 0; k < 300; ++k) {  // ~5 s, ten release time constants
+    frame_a.fill(RGB(10, 0, 0));
+    lim.apply(frame_a, 16);
+  }
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 1.f, lim.scale);
+}
+
+void test_limiter_caps_each_supply_separately() {
+  static PowerLimiter lim;
+  PowerLimits l = limits(80000, 80000);
+  l.legs_per_supply = 4;
+  l.supply_peak_ma = 3000;
+  lim.setLimits(l);
+  frame_a.fill(RGB());
+  for (int leg = 0; leg < 4; ++leg) frame_a.fillLeg(leg, RGB(255, 0, 0));  // supply 1 overloaded
+  frame_a.fillLeg(4, RGB(100, 0, 0));                                       // supply 2 within its limit
+  lim.apply(frame_a, 16);
+  uint32_t duty = 0;
+  for (int leg = 0; leg < 4; ++leg)
+    for (const auto& p : frame_a.px[leg]) duty += p.r;
+  TEST_ASSERT_TRUE(4 * 102 + duty / 255.f * 20.f <= 3000.f + 1.f);
+  TEST_ASSERT_EQUAL_UINT8(100, frame_a.px[4][0].r);
+}
+
 void test_every_mode_lights_something_and_respects_budget() {
   static Engine e(3);
-  e.setPowerBudgetMa(8000);
+  e.setPowerLimits(limits(8000, 8000));
   for (int m = 0; m < e.modeCount(); ++m) {
     e.setMode(m, 0);
     uint32_t max_requested = 0;
     for (uint32_t t = 0; t <= 8000; t += 16) {
-      const PowerReport& p = e.tick(t, frame_a);
+      const PowerLimiter& p = e.tick(t, frame_a);
       if (p.requested_ma > max_requested) max_requested = p.requested_ma;
       TEST_ASSERT_TRUE_MESSAGE(p.delivered_ma <= 8000u + 50u, e.modeName(m));
     }
@@ -194,6 +280,11 @@ int main(int, char**) {
   RUN_TEST(test_gamma_endpoints_and_monotonic);
   RUN_TEST(test_full_white_draws_about_75_amps);
   RUN_TEST(test_limiter_fits_budget_and_leaves_small_frames_alone);
+  RUN_TEST(test_limiter_leaves_frames_under_average_alone);
+  RUN_TEST(test_limiter_allows_short_bursts_but_holds_the_average);
+  RUN_TEST(test_limiter_trims_white_before_dimming_colours);
+  RUN_TEST(test_limiter_recovers_brightness_gradually);
+  RUN_TEST(test_limiter_caps_each_supply_separately);
   RUN_TEST(test_stepper_scales_with_speed_and_caps_bursts);
   RUN_TEST(test_heartbeat_envelope_shape);
   RUN_TEST(test_fft_finds_a_pure_tone);

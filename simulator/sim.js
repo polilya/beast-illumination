@@ -15,7 +15,17 @@
     setMode: M.cwrap("sim_set_mode", null, ["number", "number"]),
     setSpeed: M.cwrap("sim_set_speed", null, ["number"]),
     setBrightness: M.cwrap("sim_set_brightness", null, ["number"]),
-    setBudget: M.cwrap("sim_set_budget", null, ["number"]),
+    profileCount: M.cwrap("sim_profile_count", "number", []),
+    profileName: M.cwrap("sim_profile_name", "string", ["number"]),
+    setProfile: M.cwrap("sim_set_profile", null, ["number"]),
+    brightness: M.cwrap("sim_brightness", "number", []),
+    averageLimit: M.cwrap("sim_average_limit", "number", []),
+    peakLimit: M.cwrap("sim_peak_limit", "number", []),
+    setLimits: M.cwrap("sim_set_limits", null, ["number", "number"]),
+    averageMa: M.cwrap("sim_average_ma", "number", []),
+    reserve: M.cwrap("sim_reserve", "number", []),
+    scale: M.cwrap("sim_scale", "number", []),
+    whiteTrim: M.cwrap("sim_white_trim", "number", []),
     audioBuffer: M.cwrap("sim_audio_buffer", "number", []),
     audioBlock: M.cwrap("sim_audio_block", "number", []),
     pushAudio: M.cwrap("sim_push_audio", null, ["number"]),
@@ -67,16 +77,31 @@
     modes.appendChild(b);
   }
   modes.children[0].click();
-  const bind = (id, label, fmt, set) => {
-    const el = $(id);
-    const apply = () => { const v = Number(el.value); $(label).textContent = fmt(v); set(v); };
-    el.oninput = apply;
-    apply();
+  const A = (ma) => (ma / 1000).toFixed(1) + " A";
+  const sliders = {
+    b: { label: "bv", fmt: (v) => Math.round(v / 2.55) + "%", set: (v) => api.setBrightness(v), get: () => api.brightness() },
+    s: { label: "sv", fmt: (v) => (v / 100).toFixed(2) + "×", set: (v) => api.setSpeed(v / 100), get: null },
+    a: { label: "av", fmt: A, set: (v) => api.setLimits(v, api.peakLimit()), get: () => api.averageLimit() },
+    p: { label: "pv", fmt: A, set: (v) => api.setLimits(api.averageLimit(), v), get: () => api.peakLimit() },
   };
-  bind("b", "bv", (v) => Math.round(v / 2.55) + "%", api.setBrightness);
-  bind("s", "sv", (v) => (v / 100).toFixed(2) + "×", (v) => api.setSpeed(v / 100));
-  let budget = 20000;
-  bind("p", "pv", (v) => (v / 1000).toFixed(1) + " A", (v) => { budget = v; api.setBudget(v); });
+  const profiles = $("profiles");
+  const markProfile = (k) => [...profiles.children].forEach((c, j) => c.className = j === k ? "on" : "");
+  const syncSliders = () => {
+    for (const [id, sl] of Object.entries(sliders)) {
+      if (sl.get) $(id).value = sl.get();
+      $(sl.label).textContent = sl.fmt(Number($(id).value));
+    }
+  };
+  for (const [id, sl] of Object.entries(sliders))
+    $(id).oninput = () => { const v = Number($(id).value); sl.set(v); $(sl.label).textContent = sl.fmt(v); markProfile(-1); };
+  for (let i = 0; i < api.profileCount(); i++) {
+    const b = document.createElement("button");
+    b.textContent = api.profileName(i);
+    b.onclick = () => { api.setProfile(i); markProfile(i); syncSliders(); };
+    profiles.appendChild(b);
+  }
+  profiles.children[0].click();
+  sliders.s.set(100);
 
   // ---- optional microphone, analysed by the same C++ code as on the ESP32
   $("micbtn").onclick = async () => {
@@ -93,9 +118,9 @@
       src.connect(proc);
       proc.connect(ac.destination);
       $("micbtn").disabled = true;
-      $("mv").textContent = "on";
+      $("micv").textContent = "on";
     } catch (err) {
-      $("mv").textContent = "unavailable";
+      $("micv").textContent = "unavailable";
     }
   };
 
@@ -138,12 +163,18 @@
     drawFrame(new Uint8Array(M.HEAPU8.buffer, ptr, LEGS * PER_LEG * 3));
     renderMs += performance.now() - a;
     frames++;
-    const delivered = api.delivered(), requested = api.requested();
-    $("draw").style.width = Math.min(100, (delivered / budget) * 100) + "%";
+    const delivered = api.delivered(), requested = api.requested(), average = api.averageMa();
+    $("draw").style.width = Math.min(100, (delivered / api.peakLimit()) * 100) + "%";
+    $("avg").style.width = Math.min(100, (average / api.averageLimit()) * 100) + "%";
+    $("res").style.width = api.reserve() * 100 + "%";
     $("mic").style.width = api.audioLevel() * 100 + "%";
     if (performance.now() - lastStat > 500) {
-      $("stat").textContent = `Requested ${(requested / 1000).toFixed(1)} A, delivered ${(delivered / 1000).toFixed(1)} A · ` +
-        `${Math.round(frames * 1000 / (performance.now() - lastStat))} fps, ${(renderMs / frames).toFixed(1)} ms/frame`;
+      $("dv").textContent = A(delivered);
+      $("mv").textContent = A(average);
+      $("rv").textContent = Math.round(api.reserve() * 100) + "%";
+      $("stat").textContent = `Effect asks ${A(requested)}; white trimmed ${Math.round(api.whiteTrim() * 100)}%, ` +
+        `dimmed to ${Math.round(api.scale() * 100)}% · ${Math.round(frames * 1000 / (performance.now() - lastStat))} fps, ` +
+        `${(renderMs / frames).toFixed(1)} ms/frame`;
       frames = 0; renderMs = 0; lastStat = performance.now();
     }
     requestAnimationFrame(loop);

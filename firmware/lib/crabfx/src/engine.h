@@ -11,12 +11,6 @@
 
 namespace crabfx {
 
-struct PowerReport {
-  uint32_t requested_ma = 0;  // what the frame would draw unlimited
-  uint32_t delivered_ma = 0;  // after the budget limiter
-  float scale = 1.f;
-};
-
 class Engine {
  public:
   explicit Engine(uint32_t seed = 1);
@@ -28,16 +22,19 @@ class Engine {
 
   void setSpeed(float s) { speed_ = s < 0.1f ? 0.1f : (s > 4.f ? 4.f : s); }
   float speed() const { return speed_; }
-  void setBrightness(uint8_t b) { brightness_ = b; }
+  void setBrightness(uint8_t b) { brightness_ = b; profile_ = -1; }
   uint8_t brightness() const { return brightness_; }
-  void setPowerBudgetMa(uint32_t ma) { budget_ma_ = ma; }
-  uint32_t powerBudgetMa() const { return budget_ma_; }
+  void setPowerLimits(const PowerLimits& l) { limiter_.setLimits(l); profile_ = -1; }
+  const PowerLimits& powerLimits() const { return limiter_.limits(); }
+  // Applies a preset from kPowerProfiles: brightness and limits together.
+  void setPowerProfile(int i);
+  int powerProfile() const { return profile_; }
   void setAudio(const AudioFeatures& a) { audio_ = a; }
   const AudioFeatures& audio() const { return audio_; }
 
   // Advances the current effect and writes gamma-corrected, power-limited pixels to out.
-  const PowerReport& tick(uint32_t now_ms, Frame& out);
-  const PowerReport& power() const { return power_; }
+  const PowerLimiter& tick(uint32_t now_ms, Frame& out);
+  const PowerLimiter& power() const { return limiter_; }
   const Frame& raw() const { return raw_; }
 
  private:
@@ -63,8 +60,9 @@ class Engine {
   bool started_ = false;
   float speed_ = 1.f;
   uint8_t brightness_ = 255;
-  uint32_t budget_ma_ = 20000;
-  PowerReport power_;
+  int profile_ = -1;  // -1: limits set by hand
+  uint32_t last_tick_ms_ = 0;
+  PowerLimiter limiter_;
 };
 
 }  // namespace crabfx

@@ -25,7 +25,18 @@ EMSCRIPTEN_KEEPALIVE const char* sim_mode_name(int i) { return engine->modeName(
 EMSCRIPTEN_KEEPALIVE void sim_set_mode(int i, uint32_t now_ms) { engine->setMode(i, now_ms); }
 EMSCRIPTEN_KEEPALIVE void sim_set_speed(float s) { engine->setSpeed(s); }
 EMSCRIPTEN_KEEPALIVE void sim_set_brightness(int b) { engine->setBrightness(static_cast<uint8_t>(b)); }
-EMSCRIPTEN_KEEPALIVE void sim_set_budget(uint32_t ma) { engine->setPowerBudgetMa(ma); }
+EMSCRIPTEN_KEEPALIVE int sim_profile_count() { return kPowerProfileCount; }
+EMSCRIPTEN_KEEPALIVE const char* sim_profile_name(int i) { return kPowerProfiles[i].name; }
+EMSCRIPTEN_KEEPALIVE void sim_set_profile(int i) { engine->setPowerProfile(i); }
+EMSCRIPTEN_KEEPALIVE int sim_brightness() { return engine->brightness(); }
+EMSCRIPTEN_KEEPALIVE uint32_t sim_average_limit() { return engine->powerLimits().average_ma; }
+EMSCRIPTEN_KEEPALIVE uint32_t sim_peak_limit() { return engine->powerLimits().peak_ma; }
+EMSCRIPTEN_KEEPALIVE void sim_set_limits(uint32_t average_ma, uint32_t peak_ma) {
+  PowerLimits l = engine->powerLimits();
+  l.average_ma = average_ma;
+  l.peak_ma = peak_ma;
+  engine->setPowerLimits(l);
+}
 
 // Browser microphone: JS writes kFftSize samples at 16 kHz here, then calls sim_push_audio,
 // which runs the same analyzer the ESP32 runs on its INMP441 data.
@@ -50,5 +61,9 @@ EMSCRIPTEN_KEEPALIVE const uint8_t* sim_tick(uint32_t now_ms) {
 
 EMSCRIPTEN_KEEPALIVE uint32_t sim_requested_ma() { return engine->power().requested_ma; }
 EMSCRIPTEN_KEEPALIVE uint32_t sim_delivered_ma() { return engine->power().delivered_ma; }
+EMSCRIPTEN_KEEPALIVE float sim_average_ma() { return engine->power().average_ma; }
+EMSCRIPTEN_KEEPALIVE float sim_reserve() { return engine->power().reserve; }
+EMSCRIPTEN_KEEPALIVE float sim_scale() { return engine->power().scale; }
+EMSCRIPTEN_KEEPALIVE float sim_white_trim() { return engine->power().white_trim; }
 EMSCRIPTEN_KEEPALIVE float sim_audio_level() { return engine->audio().valid ? engine->audio().level : 0.f; }
 }
