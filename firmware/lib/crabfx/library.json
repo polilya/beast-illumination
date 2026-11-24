@@ -1,0 +1,7 @@
+{
+  "name": "crabfx",
+  "version": "1.0.0",
+  "description": "Hardware-independent effect engine for the beast-illumination crab: effects, gamma, power limiting, audio features.",
+  "platforms": "*",
+  "frameworks": "*"
+}
