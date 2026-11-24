@@ -21,7 +21,7 @@ LIB = ROOT / "firmware/lib/crabfx/src"
 BIN = ROOT / "tools/build/render_frames"
 OUT = ROOT / "docs/gifs"
 LEGS, PER_LEG = 12, 102
-SECONDS, FPS, WIDTH = 3, 12, 560
+SECONDS, FPS, WIDTH = 4, 12, 560
 
 
 def build():
@@ -99,7 +99,7 @@ def main():
     build()
     geo = geometry()
     names = mode_names()
-    readme = [0, 8, 9, 10]  # fire waves, muscle wave (colours), purple wave, sound reactive
+    readme = [0, 9, 6, 2]  # fire waves, purple wave, heartbeat, bioluminescence
     if sys.argv[1:] == ["all"]:
         modes = range(len(names))
     else:

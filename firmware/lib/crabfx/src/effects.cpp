@@ -286,63 +286,88 @@ void MuscleWave::render(Frame& f, Context& c) {
 
 // ---- Purple wave ------------------------------------------------------------
 
+const float kLegTouchdown[kLegs] = {
+    // legs 1-6 on one side (three mirrored pairs), legs 7-12 on the other
+    0.f / 6, 3.f / 6, 2.f / 6, 5.f / 6, 4.f / 6, 1.f / 6,
+    1.f / 6, 4.f / 6, 3.f / 6, 0.f / 6, 5.f / 6, 2.f / 6,
+};
+
 static RGB purpleGradient(int step) { return lerp(RGB(148, 0, 211), RGB(0, 255, 255), step * 0.1f); }
+
+static float frac(float x) { return x - floorf(x); }
 
 void PurpleWave::begin(Frame& f, Context& c) {
   f.fill(RGB());
-  phase_ = Phase::On;
-  i_ = 0;
+  for (int l = 0; l < kLegs; ++l) {
+    phase_[l] = Phase::Idle;
+    i_[l] = 0;
+  }
+  gait_ = 0.f;
+  last_ms_ = c.now_ms;
   step_.reset(c.now_ms);
 }
 
-void PurpleWave::render(Frame& f, Context& c) {
-  constexpr int kKneeSteps = 16, kTipSteps = 10, kSparkleSteps = 60;  // 60 x 50 ms = 3 s
-  for (int n = step_.due(c.now_ms, c.speed); n > 0; --n) {
-    for (auto& leg : f.px) {
-      switch (phase_) {
-        case Phase::On:
-          if (i_ < kKneeSteps) {
-            setIfOnLeg(leg, 67 - i_, purpleGradient(i_));
-            setIfOnLeg(leg, 67 + i_, purpleGradient(i_));
-          } else {
-            const int k = i_ - kKneeSteps;
-            setIfOnLeg(leg, 83 + k, purpleGradient(k + 20));
-            setIfOnLeg(leg, 93 + k, purpleGradient(k + 20));
-            setIfOnLeg(leg, 51 - k, purpleGradient(k + 20));
-          }
-          break;
-        case Phase::Sparkle:
-          if (c.rng.chance(0.67f)) leg[c.rng.range(0, 41)] = RGB(0, 255, c.rng.range(128, 255));
-          break;
-        case Phase::Off:
-          if (i_ < kTipSteps) {
-            const int k = kTipSteps - 1 - i_;
-            setIfOnLeg(leg, 83 + k, RGB());
-            setIfOnLeg(leg, 93 + k, RGB());
-            setIfOnLeg(leg, 51 - k, RGB());
-          } else {
-            const int k = kKneeSteps - 1 - (i_ - kTipSteps);
-            setIfOnLeg(leg, 67 - k, RGB());
-            setIfOnLeg(leg, 67 + k, RGB());
-          }
-          // The original never cleared the sparkle zone (0-41); clear it here too.
-          setIfOnLeg(leg, 2 * i_, RGB());
-          setIfOnLeg(leg, 2 * i_ + 1, RGB());
-          break;
+void PurpleWave::stepLeg(RGB* leg, int l, Rng& rng) {
+  constexpr int kKneeSteps = 16, kTipSteps = 10, kSparkleSteps = 20;  // 20 x 50 ms = 1 s
+  int& i = i_[l];
+  switch (phase_[l]) {
+    case Phase::Idle:
+      return;
+    case Phase::On:
+      if (i < kKneeSteps) {
+        setIfOnLeg(leg, 67 - i, purpleGradient(i));
+        setIfOnLeg(leg, 67 + i, purpleGradient(i));
+      } else {
+        const int k = i - kKneeSteps;
+        setIfOnLeg(leg, 83 + k, purpleGradient(k + 20));
+        setIfOnLeg(leg, 93 + k, purpleGradient(k + 20));
+        setIfOnLeg(leg, 51 - k, purpleGradient(k + 20));
       }
-    }
-    ++i_;
-    if (phase_ == Phase::On && i_ == kKneeSteps + kTipSteps) {
-      phase_ = Phase::Sparkle;
-      i_ = 0;
-    } else if (phase_ == Phase::Sparkle && i_ == kSparkleSteps) {
-      phase_ = Phase::Off;
-      i_ = 0;
-    } else if (phase_ == Phase::Off && i_ == kKneeSteps + kTipSteps) {
-      phase_ = Phase::On;
-      i_ = 0;
-    }
+      break;
+    case Phase::Sparkle:
+      if (rng.chance(0.67f)) leg[rng.range(0, 41)] = RGB(0, 255, rng.range(128, 255));
+      break;
+    case Phase::Off:
+      if (i < kTipSteps) {
+        const int k = kTipSteps - 1 - i;
+        setIfOnLeg(leg, 83 + k, RGB());
+        setIfOnLeg(leg, 93 + k, RGB());
+        setIfOnLeg(leg, 51 - k, RGB());
+      } else {
+        const int k = kKneeSteps - 1 - (i - kTipSteps);
+        setIfOnLeg(leg, 67 - k, RGB());
+        setIfOnLeg(leg, 67 + k, RGB());
+      }
+      // The original never cleared the sparkle zone (0-41); clear it here too.
+      setIfOnLeg(leg, 2 * i, RGB());
+      setIfOnLeg(leg, 2 * i + 1, RGB());
+      break;
   }
+  ++i;
+  if (phase_[l] == Phase::On && i == kKneeSteps + kTipSteps) {
+    phase_[l] = Phase::Sparkle;
+    i = 0;
+  } else if (phase_[l] == Phase::Sparkle && i == kSparkleSteps) {
+    phase_[l] = Phase::Off;
+    i = 0;
+  } else if (phase_[l] == Phase::Off && i == kKneeSteps + kTipSteps) {
+    phase_[l] = Phase::Idle;
+    i = 0;
+  }
+}
+
+void PurpleWave::render(Frame& f, Context& c) {
+  const float prev = gait_;
+  gait_ = frac(gait_ + (c.now_ms - last_ms_) * c.speed / kGaitPeriodMs);
+  last_ms_ = c.now_ms;
+  for (int l = 0; l < kLegs; ++l)
+    if (frac(gait_ - kLegTouchdown[l]) < frac(prev - kLegTouchdown[l])) {  // foot just touched down
+      f.fillLeg(l, RGB());
+      phase_[l] = Phase::On;
+      i_[l] = 0;
+    }
+  for (int n = step_.due(c.now_ms, c.speed); n > 0; --n)
+    for (int l = 0; l < kLegs; ++l) stepLeg(f.px[l], l, c.rng);
 }
 
 // ---- Sound reactive ---------------------------------------------------------

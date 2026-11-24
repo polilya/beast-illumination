@@ -11,8 +11,8 @@ Lighting for a walking robot crab: 12 linkage legs, each lined with 102 WS2812B 
 | Fire waves | Purple wave |
 |---|---|
 | ![Fire waves](docs/gifs/00-fire-waves.gif) | ![Purple wave](docs/gifs/09-purple-wave.gif) |
-| **Muscle wave (colours)** | **Sound reactive** |
-| ![Muscle wave](docs/gifs/08-muscle-wave-colours.gif) | ![Sound reactive](docs/gifs/10-sound-reactive.gif) |
+| **Heartbeat** | **Bioluminescence** |
+| ![Heartbeat](docs/gifs/06-heartbeat.gif) | ![Bioluminescence](docs/gifs/02-bioluminescence.gif) |
 
 *Previews rendered by [`tools/render_gif.py`](tools/render_gif.py) from the firmware effect engine, drawn on the leg geometry traced from a photo of the built leg.*
 
@@ -40,7 +40,7 @@ The first version was a set of standalone scripts, one per effect, each looping 
 - **Non-blocking.** Every effect is a state machine that is given the current time and advances by however many of its own steps are due. The main loop never sleeps, so the Wi-Fi page and the microphone keep working, and one speed multiplier applies to every mode.
 - **Parallel output.** Sending 102 LEDs takes about 3 ms; twelve legs one after another took 37 ms or more, so the legs updated out of step. FastLED's I2S driver sends all 12 data lines at once.
 - **Gamma and power.** Fades are gamma-corrected (2.2), and a limiter scales each frame so its estimated draw never exceeds the supply budget, which is set from the phone.
-- **Leg geometry.** Each strip runs as four sections along the leg linkage (addresses below). Effects use them: the purple wave starts at the foot tip and climbs both edges of the foot; the muscle wave runs along each section with a delay from leg to leg, like a gait.
+- **Leg geometry.** Each strip runs as four sections along the leg linkage (addresses below). Effects use them: the purple wave starts at the foot tip and climbs both edges of the foot, in each leg at the moment that foot touches the ground (the crank turn is timed for now, and the gait phases are an assumption, `kLegTouchdown` in [`effects.cpp`](firmware/lib/crabfx/src/effects.cpp)); the muscle wave runs along each section with a delay from leg to leg, like a gait.
 
 | Addresses | Section |
 |---|---|
@@ -51,21 +51,23 @@ The first version was a set of standalone scripts, one per effect, each looping 
 
 ## Power budget
 
-A WS2812B draws up to ~20 mA per colour channel at full duty plus ~1 mA when dark. With 1,224 LEDs, full white would need **~75 A at 5 V**, so the limit is part of the design, not an afterthought. Draw of each mode at full brightness before the limiter (after gamma correction, same model, 28 s of each mode):
+A WS2812B draws up to ~20 mA per colour channel at full duty plus ~1 mA when dark. With 1,224 LEDs, full white would need **~75 A at 5 V**, so the limit is part of the design, not an afterthought. Draw of each mode before the limiter, at full brightness and at 39 % (after gamma correction, same model, 28 s of each mode):
 
-| Mode | Mean, A | Peak, A |
+| Mode | 100 %: mean / peak, A | 39 %: mean / peak, A |
 |---|---|---|
-| Fire waves | 2.2 | 2.4 |
-| Fire sparks | 31.8 | 33.2 |
-| Bioluminescence | 20.1 | 21.8 |
-| Breathing | 23.6 | 50.7 |
-| Disco | 11.6 | 11.9 |
-| Resonance | 2.2 | 3.7 |
-| Heartbeat | 8.3 | 26.2 |
-| Muscle wave | 5.3 | 7.6 |
-| Muscle wave (colours) | 37.1 | 42.9 |
-| Purple wave | 23.1 | 36.2 |
-| Sound reactive | 5.7 | 7.5 |
+| Fire waves | 2.2 / 2.4 | 1.3 / 1.4 |
+| Fire sparks | 31.8 / 33.3 | 5.2 / 5.4 |
+| Bioluminescence | 20.1 / 21.4 | 3.6 / 3.7 |
+| Breathing | 23.7 / 50.8 | 4.0 / 7.6 |
+| Disco | 11.6 / 11.9 | 2.5 / 2.6 |
+| Resonance | 2.2 / 3.7 | 1.3 / 1.5 |
+| Heartbeat | 8.3 / 26.2 | 2.1 / 4.4 |
+| Muscle wave | 5.3 / 7.6 | 1.7 / 2.0 |
+| Muscle wave (colours) | 36.9 / 42.3 | 5.6 / 6.3 |
+| Purple wave | 14.9 / 15.6 | 3.0 / 3.1 |
+| Sound reactive | 5.7 / 7.6 | 1.8 / 2.1 |
+
+Because of gamma correction, 39 % brightness is about 13 % PWM duty, so the draw falls much faster than the brightness the eye sees. About 1.2 A of every figure is the LEDs' quiescent current, drawn even when they are dark.
 
 The default budget is 20 A (`kDefaultPowerBudgetMa` in [`config.h`](firmware/src/config.h)). At high draw, feed power into each strip at both ends: thin strip copper drops enough voltage over 102 LEDs to shift the colours at the far end.
 

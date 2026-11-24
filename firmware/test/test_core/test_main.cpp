@@ -157,6 +157,36 @@ void test_every_mode_lights_something_and_respects_budget() {
   }
 }
 
+void test_purple_wave_starts_each_leg_at_its_own_touchdown() {
+  static PurpleWave fx;
+  Rng rng(1);
+  AudioFeatures audio;
+  Context c{0, 1.f, rng, audio};
+  fx.begin(frame_a, c);
+  bool staggered = false;
+  int first_start[kLegs];
+  for (int l = 0; l < kLegs; ++l) first_start[l] = -1;
+  for (uint32_t t = 0; t <= 2 * static_cast<uint32_t>(kGaitPeriodMs); t += 16) {
+    c.now_ms = t;
+    fx.render(frame_a, c);
+    int active = 0;
+    for (int l = 0; l < kLegs; ++l) {
+      if (fx.legActive(l)) {
+        ++active;
+        if (first_start[l] < 0) first_start[l] = static_cast<int>(t);
+      }
+    }
+    staggered = staggered || (active > 0 && active < kLegs);
+  }
+  TEST_ASSERT_TRUE(staggered);
+  for (int l = 0; l < kLegs; ++l) {
+    TEST_ASSERT_TRUE(first_start[l] >= 0);
+    // first wave within one crank turn, at the leg's touchdown point
+    const float expected = (kLegTouchdown[l] > 0.f ? kLegTouchdown[l] : 1.f) * kGaitPeriodMs;
+    TEST_ASSERT_INT_WITHIN(20, static_cast<int>(expected), first_start[l]);
+  }
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_lerp_truncates_like_python_int);
@@ -170,6 +200,7 @@ int main(int, char**) {
   RUN_TEST(test_beat_detector_fires_on_onsets_only);
   RUN_TEST(test_analyzer_puts_a_bass_tone_in_the_bass_band);
   RUN_TEST(test_fire_waves_stay_within_limits_and_palette);
+  RUN_TEST(test_purple_wave_starts_each_leg_at_its_own_touchdown);
   RUN_TEST(test_every_mode_is_deterministic_for_a_seed);
   RUN_TEST(test_every_mode_lights_something_and_respects_budget);
   return UNITY_END();

@@ -154,18 +154,31 @@ class MuscleWave : public Effect {
   Stepper step_{20};
 };
 
+// Walking gait. The crank turns once per kGaitPeriodMs (at speed 1) and each leg
+// touches the ground once per turn, at its own point of the turn. There is no crank
+// sensor yet, so the turn is timed; the phases are an assumed gait: in each mirrored
+// pair the two legs are half a turn apart, the three pairs on a side a third of a
+// turn apart, and the two sides a sixth of a turn apart. Adjust to the real crank.
+constexpr float kGaitPeriodMs = 4000.f;
+extern const float kLegTouchdown[kLegs];  // fraction of a crank turn, 0..1
+
 // legacy/micropython/purple_wave_4legs.py: purple-to-cyan wave spreads from the
-// knee, cyan sparkles, then the wave retracts.
+// foot tip, cyan sparkles, then the wave retracts. Each leg starts its own wave
+// when its foot touches the ground.
 class PurpleWave : public Effect {
  public:
   const char* name() const override { return "Purple wave"; }
   void begin(Frame& f, Context& c) override;
   void render(Frame& f, Context& c) override;
+  bool legActive(int leg) const { return phase_[leg] != Phase::Idle; }
 
  private:
-  enum class Phase { On, Sparkle, Off };
-  Phase phase_ = Phase::On;
-  int i_ = 0;
+  enum class Phase { Idle, On, Sparkle, Off };
+  void stepLeg(RGB* leg, int l, Rng& rng);
+  Phase phase_[kLegs];
+  int i_[kLegs];
+  float gait_ = 0.f;  // position in the current crank turn, 0..1
+  uint32_t last_ms_ = 0;
   Stepper step_{50};
 };
 
